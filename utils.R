@@ -44,17 +44,19 @@ extract.metadata <- function(root_folder) {
   list(metadata = metadata, temp_metadata = temp_metadata)
 }
 
+
 clean_column_names <- function(df, column_names) {
   columns_reference <- as.vector(
-        c(1:3, sapply(
-            0:3,
-            function(i) c(4 + 18*i, 12 + 18*i))
-        ,
-        sapply(
-            0:3,
-            function(i) c(4 + 18*i + 77, 12 + 18*i + 77)
-        ))
-    )
+    c(1:3,
+    sapply(
+      0:3,
+      function(i) c(4 + 18*i, 12 + 18*i))
+    ,
+    sapply(
+      0:3,
+      function(i) c(4 + 18*i + 77, 12 + 18*i + 77)
+    ))
+  )
 
   df <- df[, columns_reference]
   colnames(df) <- column_names
@@ -63,9 +65,9 @@ clean_column_names <- function(df, column_names) {
 
 
 df_to_long_series <- function(df) {
-  df_long <- df |>
+  df |>
     pivot_longer(
-      cols = starts_with("Ox."),
+      cols = c(starts_with("Ox."), starts_with("Temp.")),
       names_to = c(".value", "Channel"),
       names_sep = "\\."
     ) |>
