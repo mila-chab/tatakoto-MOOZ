@@ -60,3 +60,16 @@ clean_column_names <- function(df, column_names) {
   colnames(df) <- column_names
   df
 }
+
+
+df_to_long_series <- function(df) {
+  df_long <- df |>
+    pivot_longer(
+      cols = starts_with("Ox."),
+      names_to = c(".value", "Channel"),
+      names_sep = "\\."
+    ) |>
+    mutate(Channel = as.numeric(Channel))
+
+  df_long
+}
