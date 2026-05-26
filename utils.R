@@ -4,7 +4,8 @@ library(lubridate)
 library(stringr)
 library("readxl")
 
-retrieve.raw.data <- function(root_folder, folder_path, output_path, run, skip = 136, save_data = FALSE) {
+retrieve.raw.data <- function(root_folder, folder_path, output_path, run,
+                              skip = 136, save_data = FALSE) {
   path <- paste(root_folder, folder_path, sep = "/")
   column_names <- c(
       "Date",
@@ -18,7 +19,8 @@ retrieve.raw.data <- function(root_folder, folder_path, output_path, run, skip =
                            pattern = "*.txt")
 
   file <- files_list[1]
-  table <- read.table(file = paste(path, file, sep = "/"), sep = "\t", header = TRUE, fill = TRUE,  skip = skip) |>
+  table <- read.table(file = paste(path, file, sep = "/"),
+                      sep = "\t", header = TRUE, fill = TRUE,  skip = skip) |>
     clean_column_names(column_names)
 
   if (save_data) {
@@ -30,8 +32,10 @@ retrieve.raw.data <- function(root_folder, folder_path, output_path, run, skip =
 
 
 extract.metadata <- function(root_folder, date = NULL) {
-  resp <- read_excel(paste(root_folder, "metadata/metadata.xlsx", sep = ""), sheet = "resp")
-  df <- read_excel(paste(root_folder, "metadata/metadata.xlsx", sep = ""), sheet = "metadata")
+  resp <- read_excel(paste(root_folder, "metadata/metadata.xlsx", sep = ""),
+                     sheet = "resp")
+  df <- read_excel(paste(root_folder, "metadata/metadata.xlsx", sep = ""),
+                   sheet = "metadata")
 
   resp <- resp |>
     mutate(Start_Time_Day = hms::as_hms(Start_Time_Day),
@@ -52,14 +56,11 @@ extract.metadata <- function(root_folder, date = NULL) {
 clean_column_names <- function(df, column_names) {
   columns_reference <- as.vector(
     c(1:3,
-    sapply(
-      0:3,
-      function(i) c(4 + 18*i, 12 + 18*i))
-    ,
-    sapply(
-      0:3,
-      function(i) c(4 + 18*i + 77, 12 + 18*i + 77)
-    ))
+      sapply(0:3,
+             function(i) c(4 + 18 * i, 12 + 18 * i)),
+      sapply(0:3,
+             function(i) c(4 + 18 * i + 77, 12 + 18 * i + 77))
+    )
   )
 
   df <- df[, columns_reference]
@@ -110,7 +111,7 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 
 
 calculate.slopes <- function(root_folder, data_path, output_path,
-  run, save_data = FALSE) {
+                             run, save_data = FALSE) {
   # Extract metadata
   frames <- extract.metadata(root_folder)
   metadata <- frames$metadata
@@ -129,7 +130,8 @@ calculate.slopes <- function(root_folder, data_path, output_path,
   colnames(result) <- c(
     "ID", "Date", "Phase", "Temp", "RawSlope", "Rsquared", "Slope"
   )
-  result <- result |> mutate(ID = metadata |> pull(ID), Date = as.character(data$Date[[1]])) #|>
+  result <- result |> mutate(ID = metadata |> pull(ID),
+                             Date = as.character(data$Date[[1]])) #|>
     # left_join(metadata[, c("ID", "Chamber", "V.L", "Volume.chamber")], by = c("ID" = "ID"))
 
   for (id in metadata$ID) {
@@ -137,28 +139,29 @@ calculate.slopes <- function(root_folder, data_path, output_path,
     data_channel <- data |> filter(Channel == channel)
 
     for (temp in metadata$Temp) {
-        start_time <- metadata |>
-          filter(Temp == temp) |>
-          pull(Start_Time_Day)
-        close_time <- metadata |>
-          filter(Temp == temp) |>
-          pull(Close_Time_Day)
+      start_time <- metadata |>
+        filter(Temp == temp) |>
+        pull(Start_Time_Day)
+      close_time <- metadata |>
+        filter(Temp == temp) |>
+        pull(Close_Time_Day)
 
-        data_id_filtered <- data_channel |> filter(
+      data_id_filtered <- data_channel |>
+        filter(
           as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waittime &
             as.numeric(hms(Time)) < as.numeric(hms(start_time)) +
-             (close_time - enddiscard)
+              (close_time - enddiscard)
         ) |>
         mutate(Ox = as.numeric(as.character(Ox)))
 
-        b <- lm(
-          data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Time.s)
-        )
+      b <- lm(
+        data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Time.s)
+      )
 
-        result[result$ID == id, "RawSlope"] <- b$coefficients[2]
-        result[result$ID == id, "Rsquared"] <- summary(b)$r.squared
-        # TODO : modifier en fonction de la V.L et du volume de la chambre
-        result[result$ID == id, "Slope"] <- b$coefficients[2]
+      result[result$ID == id, "RawSlope"] <- b$coefficients[2]
+      result[result$ID == id, "Rsquared"] <- summary(b)$r.squared
+      # TODO : modifier en fonction de la V.L et du volume de la chambre
+      result[result$ID == id, "Slope"] <- b$coefficients[2]
     }
   }
   # final : Date, Temp, ID, Phase, RawSlope, Rsquared, Slope
