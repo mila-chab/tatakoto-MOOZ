@@ -142,8 +142,7 @@ calculate.slopes <- function(root_folder, data_path, output_path,
         data_id_filtered <- data_channel |>
           filter(
             as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
-              as.numeric(hms(Time)) < as.numeric(hms(start_time)) +
-                (close_time - end.discard)
+              as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
           ) |>
           mutate(Ox = as.numeric(as.character(Ox)))
         temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
@@ -167,6 +166,41 @@ calculate.slopes <- function(root_folder, data_path, output_path,
                "Temp"] <- temp_mean
       }
     }
+
+    # Calculate linear regression for the blank phase
+    temp <- resp |> filter(Blanc) |> pull(Temperature.C)
+    start_time <- resp |>
+      filter(Blanc) |>
+      pull(Start_Time_Day)
+    close_time <- resp |>
+      filter(Blanc) |>
+      pull(Close_Time_Day)
+
+    data_id_filtered <- data_channel |>
+      filter(
+        as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
+          as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
+      ) |>
+      mutate(Ox = as.numeric(as.character(Ox)))
+    temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
+
+    model <- lm(
+      data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Duration.s)
+    )
+
+    result[(result$ID == id) & (result$Temp == temp) &
+             (result$Phase == "Blanc"),
+           "RawSlope"] <- model$coefficients[2]
+    result[(result$ID == id) & (result$Temp == temp) &
+             (result$Phase == "Blanc"),
+           "Rsquared"] <- summary(model)$r.squared
+    # TODO : modifier en fonction de la V.L et du volume de la chambre
+    result[(result$ID == id) & (result$Temp == temp) &
+             (result$Phase == "Blanc"),
+           "Slope"] <- model$coefficients[2] * 3600
+    result[(result$ID == id) & (result$Temp == temp) &
+             (result$Phase == "Blanc"),
+           "Temp"] <- temp_mean
   }
 
   result
