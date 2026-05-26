@@ -118,30 +118,19 @@ calculate.slopes <- function(root_folder, data_path, output_path,
   frames <- extract.metadata(root_folder)
   metadata <- frames$metadata
   resp <- frames$resp
-  temps <- resp$Temperature.C
 
   data <- read.table(file = data_path, sep = ",", fill = TRUE,
                      header = TRUE) |>
     arrange(Time)
 
   # Result Table
-  result <- expand.grid(ID = boutures_id, Temp = temps,
-                        Phase = c("Day", "Night"),
-                        stringsAsFactors = FALSE) |>
-    arrange(ID, Temp, Phase) |>
-    mutate(Date = as.character(df$Date[1]))
-  result <- result[, c("ID", "Date", "Temp", "Phase")]
-
-  num_cols <- c("RawSlope", "Rsquared", "Slope")
-  result[num_cols] <- NA_real_
-  # result <- result |>
-  #   left_join(metadata[, c("ID", "Channel", "V.L", "Volume.chamber")], by = "ID")
+  result <- create.result.frame(resp, boutures_id)
 
   for (id in boutures_id) {
     channel <- metadata |> filter(ID == id) |> pull(Channel)
     data_channel <- data |> filter(Channel == channel)
 
-    for (temp in temps) {
+    for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
       for (phase in c("Day", "Night")) {
         start_time <- resp |>
           filter(Temperature.C == temp) |>
@@ -176,5 +165,34 @@ calculate.slopes <- function(root_folder, data_path, output_path,
     }
   }
   # final : Date, Temp, ID, Phase, RawSlope, Rsquared, Slope
+  result
+}
+
+
+create.result.frame <- function(resp, boutures_id) {
+  temps <- resp |> filter(!Blanc) |> pull(Temperature.C)
+
+  res <- expand.grid(ID = boutures_id, Temp = temps,
+                     Phase = c("Day", "Night"),
+                     stringsAsFactors = FALSE) |>
+    arrange(ID, Temp, Phase) |>
+    mutate(Date = as.character(df$Date[1]))
+  res <- res[, c("ID", "Date", "Temp", "Phase")]
+
+  num_cols <- c("RawSlope", "Rsquared", "Slope")
+  res[num_cols] <- NA_real_
+
+  blanc_res <- data.frame(matrix(ncol = 7, nrow = length(boutures_id)))
+  colnames(blanc_res) <- c(
+    "ID", "Date", "Temp", "Phase", "RawSlope", "Rsquared", "Slope"
+  )
+  blanc_res <- blanc_res |>
+    mutate(ID = boutures_id,
+           Phase = "Blanc",
+           Date = as.character(df$Date[[1]]),
+           Temp = resp |> filter(Blanc) |> pull(Temperature.C))
+
+  result <- rbind(res, blanc_res) |> arrange(ID, Temp, Phase) #|>
+    # left_join(metadata[, c("ID", "Channel", "V.L", "Volume.chamber")], by = "ID")
   result
 }
