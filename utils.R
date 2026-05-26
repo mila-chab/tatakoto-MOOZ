@@ -118,21 +118,24 @@ calculate.slopes <- function(root_folder, data_path, output_path,
   frames <- extract.metadata(root_folder)
   metadata <- frames$metadata
   resp <- frames$resp
-  print(head(metadata))
-  print(head(resp))
+  temps <- resp$Temperature.C
 
   data <- read.table(file = data_path, sep = ",", fill = TRUE,
                      header = TRUE) |>
     arrange(Time)
 
   # Result Table
-  result <- data.frame(matrix(ncol = 7, nrow = length(boutures_id)))
-  colnames(result) <- c(
-    "ID", "Date", "Temp", "Phase", "RawSlope", "Rsquared", "Slope"
-  )
-  result <- result |> mutate(ID = boutures_id,
-                             Date = as.character(data$Date[[1]])) #|>
-    # left_join(metadata[, c("ID", "Chamber", "V.L", "Volume.chamber")], by = c("ID" = "ID"))
+  result <- expand.grid(ID = boutures_id, Temp = temps,
+                        Phase = c("Day", "Night"),
+                        stringsAsFactors = FALSE) |>
+    arrange(ID, Temp, Phase) |>
+    mutate(Date = as.character(df$Date[1]))
+  result <- result[, c("ID", "Date", "Temp", "Phase")]
+
+  num_cols <- c("RawSlope", "Rsquared", "Slope")
+  result[num_cols] <- NA_real_
+  # result <- result |>
+  #   left_join(metadata[, c("ID", "Channel", "V.L", "Volume.chamber")], by = "ID")
 
   for (id in boutures_id) {
     channel <- metadata |> filter(ID == id) |> pull(Channel)
