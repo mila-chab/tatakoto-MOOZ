@@ -111,7 +111,9 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 
 
 calculate.slopes <- function(root_folder, data_path, output_path,
-                             run, save_data = FALSE) {
+                             boutures_id,
+                             run, save_data = FALSE,
+                             waiting.time = 60, end.discard = 60) {
   # Extract metadata
   frames <- extract.metadata(root_folder)
   metadata <- frames$metadata
@@ -119,49 +121,47 @@ calculate.slopes <- function(root_folder, data_path, output_path,
   print(head(metadata))
   print(head(resp))
 
-  # ID <- metadata$ID
-
   data <- read.table(file = data_path, sep = ",", fill = TRUE,
                       header = TRUE) |>
-          arrange(Time)
+    arrange(Time)
 
   # Result Table
-  result <- data.frame(matrix(ncol = 26, nrow = length(metadata$ID)))
+  result <- data.frame(matrix(ncol = 7, nrow = length(metadata$ID)))
   colnames(result) <- c(
-    "ID", "Date", "Phase", "Temp", "RawSlope", "Rsquared", "Slope"
+    "ID", "Date", "Temp", "Phase", "RawSlope", "Rsquared", "Slope"
   )
-  result <- result |> mutate(ID = metadata |> pull(ID),
+  result <- result |> mutate(ID = boutures_id,
                              Date = as.character(data$Date[[1]])) #|>
     # left_join(metadata[, c("ID", "Chamber", "V.L", "Volume.chamber")], by = c("ID" = "ID"))
 
-  for (id in metadata$ID) {
-    channel <- metadata[which(metadata$ID == id), "Channel"]
+  for (id in boutures_id) {
+    channel <- metadata |> filter(ID == id) |> pull(Channel)
     data_channel <- data |> filter(Channel == channel)
 
     for (temp in metadata$Temp) {
-      start_time <- metadata |>
-        filter(Temp == temp) |>
+      start_time <- resp |>
+        filter(Temperature.C == temp) |>
         pull(Start_Time_Day)
-      close_time <- metadata |>
-        filter(Temp == temp) |>
+      close_time <- resp |>
+        filter(Temperature.C == temp) |>
         pull(Close_Time_Day)
 
       data_id_filtered <- data_channel |>
         filter(
-          as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waittime &
+          as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
             as.numeric(hms(Time)) < as.numeric(hms(start_time)) +
-              (close_time - enddiscard)
+              (close_time - end.discard)
         ) |>
         mutate(Ox = as.numeric(as.character(Ox)))
 
       b <- lm(
-        data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Time.s)
+        data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Time)
       )
 
       result[result$ID == id, "RawSlope"] <- b$coefficients[2]
       result[result$ID == id, "Rsquared"] <- summary(b)$r.squared
       # TODO : modifier en fonction de la V.L et du volume de la chambre
-      result[result$ID == id, "Slope"] <- b$coefficients[2]
+      result[result$ID == id, "Slope"] <- b$coefficients[2] * 3600
     }
   }
   # final : Date, Temp, ID, Phase, RawSlope, Rsquared, Slope
