@@ -146,25 +146,29 @@ calculate.slopes <- function(root_folder, data_path, output_path,
                 (close_time - end.discard)
           ) |>
           mutate(Ox = as.numeric(as.character(Ox)))
+        temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
 
-        b <- lm(
+        model <- lm(
           data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Duration.s)
         )
 
         result[(result$ID == id) & (result$Temp == temp) &
                  (result$Phase == phase),
-               "RawSlope"] <- b$coefficients[2]
+               "RawSlope"] <- model$coefficients[2]
         result[(result$ID == id) & (result$Temp == temp) &
                  (result$Phase == phase),
-               "Rsquared"] <- summary(b)$r.squared
+               "Rsquared"] <- summary(model)$r.squared
         # TODO : modifier en fonction de la V.L et du volume de la chambre
         result[(result$ID == id) & (result$Temp == temp) &
                  (result$Phase == phase),
-               "Slope"] <- b$coefficients[2] * 3600
+               "Slope"] <- model$coefficients[2] * 3600
+        result[(result$ID == id) & (result$Temp == temp) &
+                 (result$Phase == phase),
+               "Temp"] <- temp_mean
       }
     }
   }
-  # final : Date, Temp, ID, Phase, RawSlope, Rsquared, Slope
+
   result
 }
 
