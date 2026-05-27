@@ -112,7 +112,7 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 
 calculate.slopes <- function(root_folder, data_path, output_path,
                              boutures_id, run,
-                             output_path, save_data = FALSE,
+                             save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
   # Extract metadata
   frames <- extract.metadata(root_folder)
