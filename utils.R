@@ -110,19 +110,18 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 }
 
 
-calculate.slopes <- function(root_folder, #data_path, output_path,
-                             data,
-                             boutures_id,
-                             run, output_path, save_data = FALSE,
+calculate.slopes <- function(root_folder, data_path, output_path,
+                             boutures_id, run,
+                             output_path, save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
   # Extract metadata
   frames <- extract.metadata(root_folder)
   metadata <- frames$metadata
   resp <- frames$resp
 
-  # data <- read.table(file = data_path, sep = ",", fill = TRUE,
-  #                    header = TRUE) |>
-  #   arrange(Time)
+  data <- read.table(file = data_path, sep = ",", fill = TRUE,
+                     header = TRUE) |>
+    arrange(Time)
 
   # Result Table
   result <- create.result.frame(resp, boutures_id)
@@ -131,9 +130,7 @@ calculate.slopes <- function(root_folder, #data_path, output_path,
     channel <- metadata |> filter(ID == id) |> pull(Channel)
     data_channel <- data |> filter(Channel == channel)
 
-    # for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
-    for (temp in c(30, 31, 32, 33, 34, 35, 36, 37)) {
-      print("on est la ")
+    for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
       for (phase in c("Day", "Night")) {
         start_time <- resp |>
           filter(Temperature.C == temp) |>
