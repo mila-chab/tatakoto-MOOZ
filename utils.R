@@ -110,18 +110,19 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 }
 
 
-calculate.slopes <- function(root_folder, data_path, output_path,
+calculate.slopes <- function(root_folder, #data_path, output_path,
+                             data,
                              boutures_id,
-                             run, save_data = FALSE,
+                             run, output_path, save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
   # Extract metadata
   frames <- extract.metadata(root_folder)
   metadata <- frames$metadata
   resp <- frames$resp
 
-  data <- read.table(file = data_path, sep = ",", fill = TRUE,
-                     header = TRUE) |>
-    arrange(Time)
+  # data <- read.table(file = data_path, sep = ",", fill = TRUE,
+  #                    header = TRUE) |>
+  #   arrange(Time)
 
   # Result Table
   result <- create.result.frame(resp, boutures_id)
@@ -130,7 +131,9 @@ calculate.slopes <- function(root_folder, data_path, output_path,
     channel <- metadata |> filter(ID == id) |> pull(Channel)
     data_channel <- data |> filter(Channel == channel)
 
-    for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
+    # for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
+    for (temp in c(30, 31, 32, 33, 34, 35, 36, 37)) {
+      print("on est la ")
       for (phase in c("Day", "Night")) {
         start_time <- resp |>
           filter(Temperature.C == temp) |>
@@ -139,31 +142,11 @@ calculate.slopes <- function(root_folder, data_path, output_path,
           filter(Temperature.C == temp) |>
           pull(paste("Close_Time", phase, sep = "_"))
 
-        data_id_filtered <- data_channel |>
-          filter(
-            as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
-              as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
-          ) |>
-          mutate(Ox = as.numeric(as.character(Ox)))
-        temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
-
-        model <- lm(
-          data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Duration.s)
-        )
-
-        result[(result$ID == id) & (result$Temp == temp) &
-                 (result$Phase == phase),
-               "RawSlope"] <- model$coefficients[2]
-        result[(result$ID == id) & (result$Temp == temp) &
-                 (result$Phase == phase),
-               "Rsquared"] <- summary(model)$r.squared
-        # TODO : modifier en fonction de la V.L et du volume de la chambre
-        result[(result$ID == id) & (result$Temp == temp) &
-                 (result$Phase == phase),
-               "Slope"] <- model$coefficients[2] * 3600
-        result[(result$ID == id) & (result$Temp == temp) &
-                 (result$Phase == phase),
-               "Temp"] <- temp_mean
+        result <- result |> result.slopes(data_channel, id, temp, phase,
+                                          start_time = start_time,
+                                          close_time = close_time,
+                                          waiting.time = waiting.time,
+                                          end.discard = end.discard)
       }
     }
 
@@ -176,33 +159,19 @@ calculate.slopes <- function(root_folder, data_path, output_path,
       filter(Blanc) |>
       pull(Close_Time_Day)
 
-    data_id_filtered <- data_channel |>
-      filter(
-        as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
-          as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
-      ) |>
-      mutate(Ox = as.numeric(as.character(Ox)))
-    temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
-
-    model <- lm(
-      data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Duration.s)
-    )
-
-    result[(result$ID == id) & (result$Temp == temp) &
-             (result$Phase == "Blanc"),
-           "RawSlope"] <- model$coefficients[2]
-    result[(result$ID == id) & (result$Temp == temp) &
-             (result$Phase == "Blanc"),
-           "Rsquared"] <- summary(model)$r.squared
-    # TODO : modifier en fonction de la V.L et du volume de la chambre
-    result[(result$ID == id) & (result$Temp == temp) &
-             (result$Phase == "Blanc"),
-           "Slope"] <- model$coefficients[2] * 3600
-    result[(result$ID == id) & (result$Temp == temp) &
-             (result$Phase == "Blanc"),
-           "Temp"] <- temp_mean
+    result <- result |> result.slopes(data_channel, id, temp, "Blanc",
+                                      start_time = start_time,
+                                      close_time = close_time,
+                                      waiting.time = waiting.time,
+                                      end.discard = end.discard)
   }
 
+  if (save_result) {
+    write.csv(result,
+              paste(output_path, "/", "results_", run, "
+              .csv", sep = ""),
+              sep = ";", dec = ".", row.names = FALSE)
+  }
   result
 }
 
@@ -232,5 +201,34 @@ create.result.frame <- function(resp, boutures_id) {
 
   result <- rbind(res, blanc_res) |> arrange(ID, Temp, Phase) #|>
     # left_join(metadata[, c("ID", "Channel", "V.L", "Volume.chamber")], by = "ID")
+  result
+}
+
+
+result.slopes <- function(result, data, id, temp, phase,
+                          start_time, close_time,
+                          waiting.time = 60, end.discard = 60) {
+  data_id_filtered <- data |>
+    filter(
+      as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
+        as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
+    ) |>
+    mutate(Ox = as.numeric(as.character(Ox)))
+  temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
+
+  model <- lm(
+    data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Duration.s)
+  )
+
+  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
+         "RawSlope"] <- model$coefficients[2]
+  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
+         "Rsquared"] <- summary(model)$r.squared
+  # TODO : modifier en fonction de la V.L et du volume de la chambre
+  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
+         "Slope"] <- model$coefficients[2] * 3600
+  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
+         "Temp"] <- temp_mean
+
   result
 }
