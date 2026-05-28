@@ -8,11 +8,11 @@ retrieve.raw.data <- function(root_folder, folder_path, output_path, run,
                               skip = 136, save_data = FALSE) {
   path <- paste(root_folder, folder_path, sep = "/")
   column_names <- c(
-      "Date",
-      "Time",
-      "Duration.s",
-      as.vector(rbind(paste0("Ox.", 1:8),
-                      paste0("Temp.", 1:8)))
+    "Date",
+    "Time",
+    "Duration.s",
+    as.vector(rbind(paste0("Ox.", 1:8),
+                    paste0("Temp.", 1:8)))
   )
 
   files_list <- list.files(path = path,
@@ -119,8 +119,8 @@ calculate.slopes <- function(root_folder, data_path, output_path,
   metadata <- frames$metadata
   resp <- frames$resp
 
-  data <- read.table(file = data_path, sep = ",", fill = TRUE,
-                     header = TRUE) |>
+  data <- read.table(file = data_path, sep = ";", dec = ",",
+                     fill = TRUE, header = TRUE) |>
     arrange(Time)
 
   # Result Table
@@ -163,7 +163,7 @@ calculate.slopes <- function(root_folder, data_path, output_path,
                                       end.discard = end.discard)
   }
 
-  if (save_result) {
+  if (save_data) {
     write.csv(result,
               paste(output_path, "/", "results_", run, "
               .csv", sep = ""),
@@ -209,13 +209,10 @@ result.slopes <- function(result, data, id, temp, phase,
     filter(
       as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
         as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
-    ) |>
-    mutate(Ox = as.numeric(as.character(Ox)))
+    )
   temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
 
-  model <- lm(
-    data_id_filtered |> pull(Ox) ~ data_id_filtered |> pull(Duration.s)
-  )
+  model <- lm(Ox ~ Duration.s, data = data_id_filtered)
 
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
          "RawSlope"] <- model$coefficients[2]
