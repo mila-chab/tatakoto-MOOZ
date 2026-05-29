@@ -42,11 +42,11 @@ extract.metadata <- function(root_folder, date = NULL) {
            Close_Time_Day = hms::as_hms(Close_Time_Day),
            Start_Time_Night = hms::as_hms(Start_Time_Night),
            Close_Time_Night = hms::as_hms(Close_Time_Night),
-           Temperature = as.numeric(gsub(",", ".", Temperature.C)))
+           Temperature.C = as.numeric(gsub(",", ".", Temperature.C)))
 
   if (!is.null(date)) {
-    df <- df |> filter(Date == date)
-    resp <- resp |> filter(Date == date)
+    df <- df |> filter(Date == as.Date(date))
+    resp <- resp |> filter(Date == as.Date(date))
   }
 
   list(metadata = df, resp = resp)
@@ -110,15 +110,10 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 }
 
 
-calculate.slopes <- function(root_folder, data_path, output_path,
+calculate.slopes <- function(metadata, resp, data_path, output_path,
                              boutures_id, run,
                              save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
-  # Extract metadata
-  frames <- extract.metadata(root_folder)
-  metadata <- frames$metadata
-  resp <- frames$resp
-
   data <- read.table(file = data_path, sep = ";", dec = ",",
                      fill = TRUE, header = TRUE) |>
     arrange(Time)
@@ -147,26 +142,27 @@ calculate.slopes <- function(root_folder, data_path, output_path,
       }
     }
 
-    # Calculate linear regression for the blank phase
-    temp <- resp |> filter(Blanc) |> pull(Temperature.C)
-    start_time <- resp |>
-      filter(Blanc) |>
-      pull(Start_Time_Day)
-    close_time <- resp |>
-      filter(Blanc) |>
-      pull(Close_Time_Day)
+    # Calculate linear regression for the blank phases
+    blank_temps <- resp |> filter(Blanc) |> pull(Temperature.C)
+    for (temp in blank_temps) {
+      start_time <- resp |>
+        filter(Blanc, Temperature.C == temp) |>
+        pull(Start_Time_Day)
+      close_time <- resp |>
+        filter(Blanc, Temperature.C == temp) |>
+        pull(Close_Time_Day)
 
-    result <- result |> result.slopes(data_channel, id, temp, "Blanc",
-                                      start_time = start_time,
-                                      close_time = close_time,
-                                      waiting.time = waiting.time,
-                                      end.discard = end.discard)
+      result <- result |> result.slopes(data_channel, id, temp, "Blanc",
+                                        start_time = start_time,
+                                        close_time = close_time,
+                                        waiting.time = waiting.time,
+                                        end.discard = end.discard)
+    }
   }
 
   if (save_data) {
     write.csv(result,
-              paste(output_path, "/", "results_", run, "
-              .csv", sep = ""),
+              paste(output_path, "/", "results_", run, ".csv", sep = ""),
               sep = ";", dec = ".", row.names = FALSE)
   }
   result
@@ -186,15 +182,16 @@ create.result.frame <- function(resp, boutures_id) {
   num_cols <- c("RawSlope", "Rsquared", "Slope")
   res[num_cols] <- NA_real_
 
-  blanc_res <- data.frame(matrix(ncol = 7, nrow = length(boutures_id)))
-  colnames(blanc_res) <- c(
-    "ID", "Date", "Temp", "Phase", "RawSlope", "Rsquared", "Slope"
-  )
-  blanc_res <- blanc_res |>
-    mutate(ID = boutures_id,
-           Phase = "Blanc",
-           Date = as.character(df$Date[[1]]),
-           Temp = resp |> filter(Blanc) |> pull(Temperature.C))
+  blanc_res <- expand.grid(ID = boutures_id,
+                           Temp = resp |> filter(Blanc) |> pull(Temperature.C),
+                           Phase = "Blanc",
+                           stringsAsFactors = FALSE) |>
+    arrange(ID, Temp, Phase) |>
+    mutate(Date = as.character(df$Date[1]))
+  blanc_res <- blanc_res[, c("ID", "Date", "Temp", "Phase")]
+
+  num_cols <- c("RawSlope", "Rsquared", "Slope")
+  blanc_res[num_cols] <- NA_real_
 
   result <- rbind(res, blanc_res) |> arrange(ID, Temp, Phase) #|>
     # left_join(metadata[, c("ID", "Channel", "V.L", "Volume.chamber")], by = "ID")
