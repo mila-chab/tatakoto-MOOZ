@@ -114,13 +114,17 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
                              boutures_id, run,
                              save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
-  "
-  Calculate slopes for each bouture and temperature combination.
-  Data must be in long format with columns: Date, Time, Duration.s, Ox, Temp, Channel.
-   - metadata: data frame containing metadata information (ID, Channel, V.L, Volume.chamber)
-   - resp: data frame containing respiration information (Temperature.C, Start_Time_Day, Close_Time_Day, Start_Time_Night, Close_Time_Night, Blanc)
-   - data_path: path to the CSV file containing the long format data
-  "
+  #' Calculate slopes for each bouture and temperature combination.
+  #' Data must be in long format with columns: Date, Time, Duration.s, Ox, Temp, Channel.
+  #'  - metadata: data frame containing metadata information (ID, Channel, V.L, Volume.chamber)
+  #'  - resp: data frame containing respiration information (Temperature.C, Start_Time_Day, Close_Time_Day, Start_Time_Night, Close_Time_Night, Blanc)
+  #'  - data_path: path to the CSV file containing the long format data
+
+  #' Note: If Error is :
+  #'   Error in read.table(file = data_path, sep = ";", dec = ".", fill = TRUE, : plus de colonnes que de noms de colonnes
+  #' It probably means that the csv file have to be opened with (sep = ";", dec = ",") instead of (sep = ";", dec = ".") or invertly.
+  #' You can change it in the first line of this function.
+
   data <- read.table(file = data_path, sep = ",", dec = ".",
                      fill = TRUE, header = TRUE) |>
     arrange(Time)
