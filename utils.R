@@ -70,7 +70,7 @@ clean_column_names <- function(df, column_names) {
 
 
 df_to_long_series <- function(df) {
-  df |>
+  df_long <- df |>
     pivot_longer(
       cols = c(starts_with("Ox."), starts_with("Temp.")),
       names_to = c(".value", "Channel"),
@@ -114,12 +114,20 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
                              boutures_id, run,
                              save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
-  data <- read.table(file = data_path, sep = ";", dec = ",",
+  "
+  Calculate slopes for each bouture and temperature combination.
+  Data must be in long format with columns: Date, Time, Duration.s, Ox, Temp, Channel.
+   - metadata: data frame containing metadata information (ID, Channel, V.L, Volume.chamber)
+   - resp: data frame containing respiration information (Temperature.C, Start_Time_Day, Close_Time_Day, Start_Time_Night, Close_Time_Night, Blanc)
+   - data_path: path to the CSV file containing the long format data
+  "
+  data <- read.table(file = data_path, sep = ",", dec = ".",
                      fill = TRUE, header = TRUE) |>
     arrange(Time)
 
   # Result Table
-  result <- create.result.frame(resp, boutures_id)
+  result <- create.result.frame(resp, boutures_id,
+                                date = as.character(data$Date[1]))
 
   for (id in boutures_id) {
     channel <- metadata |> filter(ID == id) |> pull(Channel)
@@ -128,10 +136,10 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
     for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
       for (phase in c("Day", "Night")) {
         start_time <- resp |>
-          filter(Temperature.C == temp) |>
+          filter(Temperature.C == temp, !Blanc) |>
           pull(paste("Start_Time", phase, sep = "_"))
         close_time <- resp |>
-          filter(Temperature.C == temp) |>
+          filter(Temperature.C == temp, !Blanc) |>
           pull(paste("Close_Time", phase, sep = "_"))
 
         result <- result |> result.slopes(data_channel, id, temp, phase,
@@ -169,14 +177,14 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
 }
 
 
-create.result.frame <- function(resp, boutures_id) {
+create.result.frame <- function(resp, boutures_id, date) {
   temps <- resp |> filter(!Blanc) |> pull(Temperature.C)
 
   res <- expand.grid(ID = boutures_id, Temp = temps,
                      Phase = c("Day", "Night"),
                      stringsAsFactors = FALSE) |>
     arrange(ID, Temp, Phase) |>
-    mutate(Date = as.character(df$Date[1]))
+    mutate(Date = date)
   res <- res[, c("ID", "Date", "Temp", "Phase")]
 
   num_cols <- c("RawSlope", "Rsquared", "Slope")
@@ -187,7 +195,7 @@ create.result.frame <- function(resp, boutures_id) {
                            Phase = "Blanc",
                            stringsAsFactors = FALSE) |>
     arrange(ID, Temp, Phase) |>
-    mutate(Date = as.character(df$Date[1]))
+    mutate(Date = date)
   blanc_res <- blanc_res[, c("ID", "Date", "Temp", "Phase")]
 
   num_cols <- c("RawSlope", "Rsquared", "Slope")
