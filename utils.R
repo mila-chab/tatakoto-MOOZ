@@ -6,7 +6,7 @@ library("readxl")
 
 retrieve.raw.data <- function(root_folder, folder_path, output_path, run,
                               skip = 136, save_data = FALSE) {
-  path <- paste(root_folder, folder_path, sep = "/")
+  path <- paste(root_folder, folder_path, sep = "")
   column_names <- c(
     "Date",
     "Time",
@@ -42,7 +42,8 @@ extract.metadata <- function(root_folder, date = NULL) {
            Close_Time_Day = hms::as_hms(Close_Time_Day),
            Start_Time_Night = hms::as_hms(Start_Time_Night),
            Close_Time_Night = hms::as_hms(Close_Time_Night),
-           Temperature.C = as.numeric(gsub(",", ".", Temperature.C)))
+           Temperature.C = as.numeric(gsub(",", ".", Temperature.C)),
+           Blanc = as.logical(Blanc))
 
   if (!is.null(date)) {
     df <- df |> filter(Date == as.Date(date))
@@ -110,7 +111,7 @@ attribute.temperature.to.timeseries <- function(data, metadata) {
 }
 
 
-calculate.slopes <- function(metadata, resp, data_path, output_path,
+calculate.slopes <- function(metadata, resp, data, output_path,
                              boutures_id, run,
                              save_data = FALSE,
                              waiting.time = 60, end.discard = 60) {
@@ -125,12 +126,12 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
   #' It probably means that the csv file have to be opened with (sep = ";", dec = ",") instead of (sep = ";", dec = ".") or invertly.
   #' You can change it in the first line of this function.
 
-  data <- read.table(file = data_path, sep = ",", dec = ".",
-                     fill = TRUE, header = TRUE) |>
-    arrange(Time)
+  # data <- read.table(file = data_path, sep = ",", dec = ".",
+  #                    fill = TRUE, header = TRUE) |>
+  #   arrange(Time)
 
   # Result Table
-  result <- create.result.frame(resp, boutures_id,
+  result <- create.result.frame(resp, metadata, boutures_id,
                                 date = as.character(data$Date[1]))
 
   for (id in boutures_id) {
@@ -147,6 +148,7 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
           pull(paste("Close_Time", phase, sep = "_"))
 
         result <- result |> result.slopes(data_channel, id, temp, phase,
+                                          metadata,
                                           start_time = start_time,
                                           close_time = close_time,
                                           waiting.time = waiting.time,
@@ -165,6 +167,7 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
         pull(Close_Time_Day)
 
       result <- result |> result.slopes(data_channel, id, temp, "Blanc",
+                                        metadata,
                                         start_time = start_time,
                                         close_time = close_time,
                                         waiting.time = waiting.time,
@@ -181,7 +184,7 @@ calculate.slopes <- function(metadata, resp, data_path, output_path,
 }
 
 
-create.result.frame <- function(resp, boutures_id, date) {
+create.result.frame <- function(resp, metadata, boutures_id, date) {
   temps <- resp |> filter(!Blanc) |> pull(Temperature.C)
 
   res <- expand.grid(ID = boutures_id, Temp = temps,
@@ -202,16 +205,18 @@ create.result.frame <- function(resp, boutures_id, date) {
     mutate(Date = date)
   blanc_res <- blanc_res[, c("ID", "Date", "Temp", "Phase")]
 
-  num_cols <- c("RawSlope", "Rsquared", "Slope")
   blanc_res[num_cols] <- NA_real_
 
-  result <- rbind(res, blanc_res) |> arrange(ID, Temp, Phase) #|>
-    # left_join(metadata[, c("ID", "Channel", "V.L", "Volume.chamber")], by = "ID")
+  result <- rbind(res, blanc_res) |> arrange(ID, Temp, Phase) |>
+    left_join(metadata[, c("ID", "Channel", "V.coral.L",
+                           "V.chamber.L", "Surface.m2")],
+              by = "ID")
   result
 }
 
 
 result.slopes <- function(result, data, id, temp, phase,
+                          metadata,
                           start_time, close_time,
                           waiting.time = 60, end.discard = 60) {
   data_id_filtered <- data |>
@@ -221,6 +226,10 @@ result.slopes <- function(result, data, id, temp, phase,
     )
   temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
 
+  v.coral <- metadata |> filter(ID == id) |> pull(V.coral.L)
+  v.chamber <- metadata |> filter(ID == id) |> pull(V.chamber.L)
+  s.coral <- metadata |> filter(ID == id) |> pull(Surface.m2)
+
   model <- lm(Ox ~ Duration.s, data = data_id_filtered)
 
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
@@ -229,7 +238,7 @@ result.slopes <- function(result, data, id, temp, phase,
          "Rsquared"] <- summary(model)$r.squared
   # TODO : modifier en fonction de la V.L et du volume de la chambre
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "Slope"] <- model$coefficients[2] * 3600
+         "Slope"] <- model$coefficients[2] * (v.chamber - v.coral) * 3600 / s.coral
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
          "Temp"] <- temp_mean
 
