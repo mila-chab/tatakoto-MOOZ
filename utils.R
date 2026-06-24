@@ -244,3 +244,42 @@ result.slopes <- function(result, data, id, temp, phase,
 
   result
 }
+
+
+raw.plot <- function(data, unit, wayout = NULL,
+                     save_image = TRUE) {
+  for (i in 1:8) {
+    channel_data <- data |> filter(Channel == i)
+    c <- ggplot(channel_data, environment = environment()) +
+      geom_point(aes(
+        x = Time,
+        y = as.numeric(as.character(Ox))
+      )) +
+      ylab(paste("Ox.", i, unit, sep = "")) +
+      xlab("Time (sec)")
+    print(c)
+    if (save_image) {
+      ggsave(c,
+        filename = paste("Ox.", i, ".pdf", sep = ""),
+        path = wayout, width = 20, height = 4
+      )
+    }
+  }
+}
+
+
+plot_channel_n <- function(data, id, channel, phase = "Blank", temp) {
+  channel_data <- data |> filter(Channel == channel)
+
+  plot_channel <- ggplot(channel_data, environment = environment()) +
+    geom_point(aes(x = Time, y = Ox)) +
+    ylab(paste("Concentration en Ox. ", unit )) +
+    xlab("Time (sec)") +
+    ggtitle(paste("ID", id))
+
+  print(plot_channel)
+  ggsave(plot_channel,
+    filename = paste(phase, "_", id, "_", round(temp), "C.pdf", sep = ""),
+    path = wayout, width = 20, height = 4
+  )
+}
