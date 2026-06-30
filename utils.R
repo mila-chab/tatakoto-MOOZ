@@ -236,9 +236,9 @@ result.slopes <- function(result, data, id, temp, phase,
          "RawSlope"] <- model$coefficients[2]
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
          "Rsquared"] <- summary(model)$r.squared
-  # TODO : modifier en fonction de la V.L et du volume de la chambre
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "Slope"] <- model$coefficients[2] * (v.chamber - v.coral) * 3600 / s.coral
+         "Slope"] <- model$coefficients[2] *
+    (v.chamber - v.coral) * 3600 / s.coral
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
          "Temp"] <- temp_mean
 
@@ -246,18 +246,47 @@ result.slopes <- function(result, data, id, temp, phase,
 }
 
 
-raw.plot <- function(data, unit, wayout = NULL,
+raw.plot <- function(data, resp, unit, wayout = NULL,
                      save_image = TRUE) {
   for (i in 1:8) {
-    channel_data <- data |> filter(Channel == i)
+    channel_data <- data |>
+      filter(Channel == i) |>
+      mutate(Time = hms::as.hms(Time))
+
     c <- ggplot(channel_data, environment = environment()) +
       geom_point(aes(
         x = Time,
         y = as.numeric(as.character(Ox))
       )) +
       ylab(paste("Ox.", i, unit, sep = "")) +
-      xlab("Time (sec)")
+      xlab("Time (sec)") +
+      scale_x_discrete(
+        breaks = channel_data$Time[seq(1, nrow(channel_data), by = 2000)]
+      ) +
+      scale_x_discrete(
+        breaks = channel_data$Time[seq(1, nrow(channel_data), by = 2200)]
+      ) +
+      geom_rect(data = resp |> filter(Date == as.Date(date)),
+                aes(xmin = Start_Time_Day,
+                    xmax = Close_Time_Day,
+                    ymin = - Inf,
+                    ymax = Inf,
+                    fill = "darkred"),
+                alpha = 0.3) +
+      geom_rect(data = resp |> filter(Date == as.Date(date)),
+                aes(xmin = Start_Time_Night,
+                    xmax = Close_Time_Night,
+                    ymin = - Inf,
+                    ymax = Inf,
+                    fill = "darkblue"),
+                alpha = 0.3) +
+      scale_fill_manual(
+        values = c("darkred" = "darkred", "darkblue" = "darkblue"),
+        labels = c("darkred" = "Jour", "darkblue" = "Nuit")
+      )
+
     print(c)
+
     if (save_image) {
       ggsave(c,
         filename = paste("Ox.", i, ".pdf", sep = ""),
@@ -268,18 +297,17 @@ raw.plot <- function(data, unit, wayout = NULL,
 }
 
 
-plot_channel_n <- function(data, id, channel, phase = "Blank", temp) {
-  channel_data <- data |> filter(Channel == channel)
-
-  plot_channel <- ggplot(channel_data, environment = environment()) +
+plot_channel_n <- function(data, date, phase = "Blank", temp, unit = "mg/s", wayout) {
+  plot_channel <- ggplot(data, environment = environment()) +
     geom_point(aes(x = Time, y = Ox)) +
-    ylab(paste("Concentration en Ox. ", unit )) +
+    ylab(paste("Concentration en Ox. ", unit)) +
     xlab("Time (sec)") +
-    ggtitle(paste("ID", id))
+    ggtitle(paste("Phase :", phase, "- Temp :", temp)) +
+    facet_wrap(~ ID)
 
   print(plot_channel)
   ggsave(plot_channel,
-    filename = paste(phase, "_", id, "_", round(temp), "C.pdf", sep = ""),
+    filename = paste(phase, "_", round(temp), "C.pdf", sep = ""),
     path = wayout, width = 20, height = 4
   )
 }
