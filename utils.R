@@ -194,7 +194,7 @@ create.result.frame <- function(resp, metadata, boutures_id, date) {
     mutate(Date = date)
   res <- res[, c("ID", "Date", "Temp", "Phase")]
 
-  num_cols <- c("RawSlope", "Rsquared", "Slope")
+  num_cols <- c("Variance.Temp", "RawSlope", "Rsquared", "Slope")
   res[num_cols] <- NA_real_
 
   blanc_res <- expand.grid(ID = boutures_id,
@@ -225,6 +225,7 @@ result.slopes <- function(result, data, id, temp, phase,
         as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
     )
   temp_mean <- data_id_filtered |> pull(Temp) |> mean(na.rm = TRUE)
+  temp_var <- data_id_filtered |> pull(Temp) |> var(na.rm = TRUE)
 
   v.coral <- metadata |> filter(ID == id) |> pull(V.coral.L)
   v.chamber <- metadata |> filter(ID == id) |> pull(V.chamber.L)
@@ -239,6 +240,8 @@ result.slopes <- function(result, data, id, temp, phase,
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
          "Slope"] <- model$coefficients[2] *
     (v.chamber - v.coral) * 3600 / s.coral
+  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
+         "Variance.Temp"] <- temp_var
   result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
          "Temp"] <- temp_mean
 
