@@ -316,3 +316,74 @@ plot_channel_n <- function(data, date, phase = "Blank", temp, unit = "mg/s", way
     path = wayout, width = 20, height = 4
   )
 }
+
+
+create.temp.frame <- function(resp, date) {
+  temps <- r |> filter(!Blanc) |> pull(Temperature.C)
+
+  res <- expand.grid(Date = as.Date(date), Temp = temps,
+                     Phase = c("Day", "Night"),
+                     stringsAsFactors = FALSE) |>
+    arrange(Temp, Phase)
+
+  blanc_res <- expand.grid(Date = as.Date(date),
+                           Temp = r |> filter(Blanc) |> pull(Temperature.C),
+                           Phase = "Blanc",
+                           stringsAsFactors = FALSE) |>
+    arrange(Temp, Phase)
+
+  temp.results <- rbind(res, blanc_res) |>
+    arrange(Date, Temp, Phase) |>
+    mutate(Variance.Temp = NA)
+
+  temp.results
+}
+
+calculate.var.temp <- function(resp, data, date,
+                               waiting.time = 60, end.discard = 60) {
+  temp.results <- create.temp.frame(resp, as.Date(date))
+
+  for (temp in resp |> filter(!Blanc) |> pull(Temperature.C)) {
+    for (phase in c("Day", "Night")) {
+      start_time <- resp |>
+        filter(Temperature.C == temp, !Blanc) |>
+        pull(paste("Start_Time", phase, sep = "_"))
+      close_time <- resp |>
+        filter(Temperature.C == temp, !Blanc) |>
+        pull(paste("Close_Time", phase, sep = "_"))
+
+      phase_data <- data |>
+        filter(
+          as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
+            as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
+        )
+      temp_var <- phase_data |> pull(Temp) |> var(na.rm = TRUE)
+
+      temp.results[(temp.results$Date == date) & (temp.results$Temp == temp) &
+                    (temp.results$Phase == phase),
+                  "Variance.Temp"] <- temp_var
+    }
+  }
+
+  for (temp in r |> filter(Blanc) |> pull(Temperature.C)) {
+    start_time <- r |>
+      filter(Temperature.C == temp, Blanc) |>
+      pull("Start_Time_Day")
+    close_time <- r |>
+      filter(Temperature.C == temp, Blanc) |>
+      pull("Close_Time_Day")
+
+    phase_data <- data |>
+      filter(
+        as.numeric(hms(Time)) > as.numeric(hms(start_time)) + waiting.time &
+          as.numeric(hms(Time)) < as.numeric(hms(close_time)) - end.discard
+      )
+    temp_var <- phase_data |> pull(Temp) |> var(na.rm = TRUE)
+
+    temp.results[(temp.results$Date == date) & (temp.results$Temp == temp) &
+                    (temp.results$Phase == "Blanc"),
+                  "Variance.Temp"] <- temp_var
+  }
+
+  temp.results
+}
