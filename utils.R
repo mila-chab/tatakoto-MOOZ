@@ -192,7 +192,6 @@ create.result.frame <- function(resp, metadata, boutures_id, date) {
                      stringsAsFactors = FALSE) |>
     arrange(ID, Temp, Phase) |>
     mutate(Date = date)
-  res <- res[, c("ID", "Date", "Temp", "Phase")]
 
   num_cols <- c("Variance.Temp", "RawSlope", "Rsquared", "Slope")
   res[num_cols] <- NA_real_
@@ -203,7 +202,6 @@ create.result.frame <- function(resp, metadata, boutures_id, date) {
                            stringsAsFactors = FALSE) |>
     arrange(ID, Temp, Phase) |>
     mutate(Date = date)
-  blanc_res <- blanc_res[, c("ID", "Date", "Temp", "Phase")]
 
   blanc_res[num_cols] <- NA_real_
 
@@ -211,6 +209,10 @@ create.result.frame <- function(resp, metadata, boutures_id, date) {
     left_join(metadata[, c("ID", "Channel", "V.coral.L",
                            "V.chamber.L", "Surface.m2")],
               by = "ID")
+
+  result <- result[, c("ID", "Date", "Channel", "Phase", "Temp",
+                       num_cols,
+                       "V.coral.L", "V.chamber.L", "Surface.m2")]
   result
 }
 
