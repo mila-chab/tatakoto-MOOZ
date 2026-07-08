@@ -212,7 +212,7 @@ create.result.frame <- function(resp, metadata, boutures_id, date) {
 
   result <- result[, c("ID", "Date", "Channel", "Phase", "Temp",
                        num_cols,
-                       "V.coral.L", "V.chamber.L", "Surface.m2")]
+                       "V.chamber.L", "V.coral.L", "Surface.m2")]
   result
 }
 
