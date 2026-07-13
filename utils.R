@@ -235,17 +235,14 @@ result.slopes <- function(result, data, id, temp, phase,
 
   model <- lm(Ox ~ Duration.s, data = data_id_filtered)
 
-  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "RawSlope"] <- model$coefficients[2]
-  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "Rsquared"] <- summary(model)$r.squared
-  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "Slope"] <- model$coefficients[2] *
+  line <- (result$ID == id) & (result$Temp == temp) & (result$Phase == phase)
+
+  result[line, "RawSlope"] <- model$coefficients[2]
+  result[line, "Rsquared"] <- summary(model)$r.squared
+  result[line, "Slope"] <- model$coefficients[2] *
     (v.chamber - v.coral) * 3600 / s.coral
-  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "Variance.Temp"] <- temp_var
-  result[(result$ID == id) & (result$Temp == temp) & (result$Phase == phase),
-         "Temp"] <- temp_mean
+  result[line, "Variance.Temp"] <- temp_var
+  result[line, "Temp"] <- temp_mean
 
   result
 }
@@ -319,15 +316,14 @@ plot_channel_n <- function(data, date, phase = "Blank", temp, unit = "mg/s", way
 
 
 create.temp.frame <- function(resp, date) {
-  temps <- r |> filter(!Blanc) |> pull(Temperature.C)
-
-  res <- expand.grid(Date = as.Date(date), Temp = temps,
+  res <- expand.grid(Date = as.Date(date),
+                     Temp = resp |> filter(!Blanc) |> pull(Temperature.C),
                      Phase = c("Day", "Night"),
                      stringsAsFactors = FALSE) |>
     arrange(Temp, Phase)
 
   blanc_res <- expand.grid(Date = as.Date(date),
-                           Temp = r |> filter(Blanc) |> pull(Temperature.C),
+                           Temp = resp |> filter(Blanc) |> pull(Temperature.C),
                            Phase = "Blanc",
                            stringsAsFactors = FALSE) |>
     arrange(Temp, Phase)
@@ -365,11 +361,11 @@ calculate.var.temp <- function(resp, data, date,
     }
   }
 
-  for (temp in r |> filter(Blanc) |> pull(Temperature.C)) {
-    start_time <- r |>
+  for (temp in resp |> filter(Blanc) |> pull(Temperature.C)) {
+    start_time <- resp |>
       filter(Temperature.C == temp, Blanc) |>
       pull("Start_Time_Day")
-    close_time <- r |>
+    close_time <- resp |>
       filter(Temperature.C == temp, Blanc) |>
       pull("Close_Time_Day")
 
@@ -381,8 +377,8 @@ calculate.var.temp <- function(resp, data, date,
     temp_var <- phase_data |> pull(Temp) |> var(na.rm = TRUE)
 
     temp.results[(temp.results$Date == date) & (temp.results$Temp == temp) &
-                    (temp.results$Phase == "Blanc"),
-                  "Variance.Temp"] <- temp_var
+                   (temp.results$Phase == "Blanc"),
+                 "Variance.Temp"] <- temp_var
   }
 
   temp.results
